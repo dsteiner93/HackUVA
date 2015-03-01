@@ -34,7 +34,6 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
     public static final String ip = "172.20.10.2";
     public static final int port = 13337;
     public static final int N = 50;
-    public static final int TIMEOUT = 20000;
 
     private Context mContext;
     private CustomArrayAdapter mAdapter;
@@ -77,15 +76,8 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
         try {
             System.out.println(BASE_URL_IMAGE+id+END_URL_IMAGE);
             URL url = new URL(BASE_URL_IMAGE+id+END_URL_IMAGE);
-
-            HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty(AUTHORIZATION, CLIENT_ID);
-            connection.setConnectTimeout(TIMEOUT);
-
+            HttpsURLConnection connection = getHttpsURLConnection(url);
             String jsonString = getUrlStreamString(connection);
-
-            System.out.println(jsonString);
             JSONObject commentsJson = new JSONObject(jsonString);
             return commentsJson.getJSONArray(DATA);
         }
@@ -100,10 +92,7 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
             JSONObject[] comments = new JSONObject[ids.length()];
             for (int i = 0; i < N; i++) {
                 URL url = new URL(BASE_URL_COMMENTS + ids.optInt(i)); //should this be getInt?
-                HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                connection.setRequestProperty(AUTHORIZATION, CLIENT_ID);
-                connection.setConnectTimeout(TIMEOUT);
+                HttpsURLConnection connection = getHttpsURLConnection(url);
                 String jsonComment = getUrlStreamString(connection);
                 comments[i] = new JSONObject(jsonComment);
             }
@@ -113,6 +102,13 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
             e.printStackTrace();
         }
         return null;
+    }
+
+    private HttpsURLConnection getHttpsURLConnection(URL url) throws IOException {
+        HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+        connection.addRequestProperty(AUTHORIZATION, CLIENT_ID);
+        return connection;
     }
 
     private String getUrlStreamString(HttpsURLConnection connection) {
