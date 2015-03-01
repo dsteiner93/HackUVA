@@ -13,9 +13,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.net.ssl.HttpsURLConnection;
 
 /**
  * Created by rmvl on 3/1/2015.
@@ -30,8 +31,10 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
     public static String BASE_URL_COMMENTS = "https://api.imgur.com/3/comment/";
     public static String AUTHOR = "author";
     public static String COMMENT = "comment";
-    public static final String ip = "10.143.89.42";
+    public static final String ip = "172.20.10.2";
     public static final int port = 13337;
+    public static final int N = 50;
+    public static final int TIMEOUT = 20000;
 
     private Context mContext;
     private CustomArrayAdapter mAdapter;
@@ -47,15 +50,12 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
     protected JSONObject[] doInBackground(Void... params) {
         String id = "";
         try {
-            System.out.print("DLS made it to connect");
             Socket clientSocket = new Socket(ip, port);
             //Input stream from socket
             BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             String url = inFromServer.readLine();
-            id = extractKey(url);
+            id = url;
         }
-        catch(NumberFormatException e){System.out.println("Invalid port number");}
-        catch(ArrayIndexOutOfBoundsException e){System.out.println("Insufficient arguments");}
         catch(IOException e) {System.out.println("IO Exception, socket could not be created");}
 
         try {
@@ -75,10 +75,17 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
 
     private JSONArray getCommentIds(String id) {
         try {
+            System.out.println(BASE_URL_IMAGE+id+END_URL_IMAGE);
             URL url = new URL(BASE_URL_IMAGE+id+END_URL_IMAGE);
-            URLConnection connection = url.openConnection();
-            connection.addRequestProperty(AUTHORIZATION, CLIENT_ID);
+
+            HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty(AUTHORIZATION, CLIENT_ID);
+            connection.setConnectTimeout(TIMEOUT);
+
             String jsonString = getUrlStreamString(connection);
+
+            System.out.println(jsonString);
             JSONObject commentsJson = new JSONObject(jsonString);
             return commentsJson.getJSONArray(DATA);
         }
@@ -91,10 +98,12 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
     private JSONObject[] getCommentsAsJson(JSONArray ids) {
         try {
             JSONObject[] comments = new JSONObject[ids.length()];
-            for (int i = 0; i < ids.length(); i++) {
+            for (int i = 0; i < N; i++) {
                 URL url = new URL(BASE_URL_COMMENTS + ids.optInt(i)); //should this be getInt?
-                URLConnection connection = url.openConnection();
-                connection.addRequestProperty(AUTHORIZATION, CLIENT_ID);
+                HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty(AUTHORIZATION, CLIENT_ID);
+                connection.setConnectTimeout(TIMEOUT);
                 String jsonComment = getUrlStreamString(connection);
                 comments[i] = new JSONObject(jsonComment);
             }
@@ -106,17 +115,18 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
         return null;
     }
 
-    private String getUrlStreamString(URLConnection connection) {
+    private String getUrlStreamString(HttpsURLConnection connection) {
         try {
             InputStream inputStream = connection.getInputStream();
             BufferedReader bufferedReader = new BufferedReader( new InputStreamReader(inputStream));
+            StringBuffer sb = new StringBuffer();
             String line = "";
-            String result = "";
             while((line = bufferedReader.readLine()) != null) {
-                result += line;
+                sb.append(line);
             }
-            inputStream.close();
-            return result;
+            /*inputStream.close();
+            bufferedReader.close();*/
+            return sb.toString();
         }
         catch(Exception e) {
             e.printStackTrace();
@@ -127,12 +137,16 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
 
     protected void onPostExecute(JSONObject[] commentsJson) {
         //Update the UI (listview)
+        System.out.println("DLS "+commentsJson.length);
         List<String> authors = new ArrayList<String>();
         List<String> comments = new ArrayList<String>();
         try {
             for (int i = 0; i < commentsJson.length; i++) {
-                authors.add(commentsJson[i].getString(AUTHOR));
-                comments.add(commentsJson[i].getString(COMMENT));
+                if(commentsJson[i] == null) System.out.println("null error");
+                //authors.add(commentsJson[i].getString(AUTHOR));
+                //System.out.println(commentsJson[i].getString(AUTHOR));
+                else {comments.add(commentsJson[i].getString(COMMENT));
+                System.out.println(commentsJson[i].getString(COMMENT));}
             }
             mAdapter = new CustomArrayAdapter(mContext, authors, comments);
             mComments.setAdapter(mAdapter);
@@ -141,11 +155,5 @@ public class CommentRetriever extends AsyncTask<Void, Void, JSONObject[]> {
             e.printStackTrace();
         }
     }
-    public String extractKey(String s) {
-        String q = s.substring(s.lastIndexOf("/"), s.length());
-        System.out.print("DLS "+q);
-        return q;
-    }
-
 
 }
